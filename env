@@ -1,5 +1,0 @@
-﻿# Supabase Configuration
-# IMPORTANTE: Verifique se estas credenciais estão corretas no seu projeto Supabase
-# Acesse: https://app.supabase.com -> Seu Projeto -> Settings -> API
-VITE_SUPABASE_URL=https://mnlitpbxbxbjygydvloy.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_jGVDb06hxBOkQoGVZZGm1w_88N9pDKi
