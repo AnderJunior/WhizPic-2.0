@@ -1,0 +1,81 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@layer base {
+  :root {
+    --font-sans: system-ui, -apple-system, sans-serif;
+
+    /* WhizPic Color Palette */
+    /* Primária: #6D56AB → hsl(258, 35%, 50%) */
+    /* Secundária: #4a3b75 → hsl(258, 33%, 35%) */
+    /* Terciária: #9982fc → hsl(258, 95%, 75%) */
+    /* Suporte 1: #ffdb8f → hsl(38, 100%, 78%) */
+    /* Suporte 2: #ff87ff → hsl(300, 100%, 76%) */
+
+    --background: 0 0% 100%;
+    --foreground: 258 33% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 258 33% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 258 33% 15%;
+
+    /* Primary - Cor Primária #6D56AB */
+    --primary: 258 35% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary - Cor Secundária #4a3b75 */
+    --secondary: 258 33% 35%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 258 20% 96%;
+    --muted-foreground: 258 10% 46%;
+
+    /* Accent - Cor Terciária #9982fc */
+    --accent: 258 95% 75%;
+    --accent-foreground: 258 33% 15%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 258 20% 91%;
+    --input: 258 20% 91%;
+    --ring: 258 35% 50%;
+
+    /* Charts - Usando cores de suporte */
+    --chart-1: 258 35% 50%;
+    --chart-2: 38 100% 78%;
+    --chart-3: 300 100% 76%;
+    --chart-4: 258 95% 75%;
+    --chart-5: 258 33% 35%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 258 33% 15%;
+    --sidebar-primary: 258 35% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 258 20% 96%;
+    --sidebar-accent-foreground: 258 33% 15%;
+    --sidebar-border: 258 20% 91%;
+    --sidebar-ring: 258 35% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+  }
+}
