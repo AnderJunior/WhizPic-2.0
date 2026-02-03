@@ -10,6 +10,7 @@ import MeusLivros from "@/pages/MeusLivros"
 import CriarLivro from "@/pages/CriarLivro"
 import VisualizarLivro from "@/pages/VisualizarLivro"
 import Configuracoes from "@/pages/Configuracoes"
+import GeracaoIA from "@/pages/GeracaoIA"
 import Layout from "@/components/Layout"
 import { Loading } from "@/components/Loading"
 
@@ -93,6 +94,16 @@ function App() {
             <ProtectedRoute>
               <Layout>
                 <Configuracoes />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/geracao-ia"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <GeracaoIA />
               </Layout>
             </ProtectedRoute>
           }

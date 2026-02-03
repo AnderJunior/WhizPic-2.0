@@ -36,7 +36,56 @@ const IMGBB_API_KEY = import.meta.env.VITE_IMGBB_API_KEY
 
 const OPENAI_MODEL = "gpt-4.1-mini"
 
+export interface AIPromptsConfig {
+  imagePromptsSystem?: string
+  imagePromptsUser?: string
+  storyCartoonSystem?: string
+  storyCartoonUser?: string
+  storyWithImageBaseSystem?: string
+  storyWithImageBaseUser?: string
+  characterIdentityRule?: string
+}
+
+export interface AIGenerationConfig {
+  model: string
+  temperatureDefault: number
+  temperatureImagePrompts: number
+  temperatureStory: number
+  prompts: AIPromptsConfig | null
+}
+
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+function replacePlaceholders(template: string, vars: Record<string, string>): string {
+  let out = template
+  for (const [key, value] of Object.entries(vars)) {
+    out = out.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), value ?? "")
+  }
+  return out
+}
+
+async function fetchProfileAIConfig(userId: string): Promise<AIGenerationConfig | null> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("ai_model, ai_temperature_default, ai_temperature_image_prompts, ai_temperature_story, ai_prompts")
+    .eq("id", userId)
+    .single()
+  if (error || !data) return null
+  const row = data as {
+    ai_model?: string
+    ai_temperature_default?: number
+    ai_temperature_image_prompts?: number
+    ai_temperature_story?: number
+    ai_prompts?: AIPromptsConfig | null
+  }
+  return {
+    model: row.ai_model ?? OPENAI_MODEL,
+    temperatureDefault: Number(row.ai_temperature_default) ?? 0.4,
+    temperatureImagePrompts: Number(row.ai_temperature_image_prompts) ?? 0.5,
+    temperatureStory: Number(row.ai_temperature_story) ?? 0.6,
+    prompts: row.ai_prompts ?? null,
+  }
+}
 
 function ensureRequiredEnv() {
   const missing: string[] = []
@@ -140,7 +189,13 @@ async function uploadImageToImgBB(file: File): Promise<string> {
   return url
 }
 
-async function callOpenAI(systemMessage: string, userMessage: string, temperature = 0.4) {
+async function callOpenAI(
+  systemMessage: string,
+  userMessage: string,
+  temperature = 0.4,
+  modelOverride?: string
+) {
+  const model = modelOverride ?? OPENAI_MODEL
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -148,7 +203,7 @@ async function callOpenAI(systemMessage: string, userMessage: string, temperatur
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: OPENAI_MODEL,
+      model,
       temperature,
       messages: [
         { role: "system", content: systemMessage },
@@ -170,27 +225,36 @@ async function callOpenAI(systemMessage: string, userMessage: string, temperatur
   return content
 }
 
-async function generateImagePrompts(historia: string, estiloImagem: string, referencias: ReferenceImageInput[]) {
-  const systemMessage = [
-    "Voce e um especialista em prompts para ilustracoes digitais modernas.",
-    "Retorne APENAS JSON valido, sem markdown e sem explicacoes.",
-    "Os prompts devem estar em ingles.",
-    "Gere tres chaves: prompt_personagem, prompt_estilo_imagem e ficha_personagem.",
-    "prompt_personagem: apenas o personagem principal, identidade visual e traços fisicos, sem cenario.",
-    "prompt_estilo_imagem: apenas o estilo visual (tecnica, paleta, luz, atmosfera), sem personagem.",
-    "ficha_personagem: um character bible detalhado com TODOS os personagens principais da historia, incluindo identidade visual, roupas iniciais, cores, acessorios e detalhes fisicos consistentes para cada um.",
-    "Sempre preserve a identidade do rosto com base na imagem de referencia.",
-    "Evite estilo infantil, chibi ou proporcoes de bebe.",
-    "Busque um visual animado, estilizado e com toque futurista discreto quando fizer sentido.",
-    "Inclua diretrizes de consistencia visual (paleta, textura e iluminacao).",
-  ].join(" ")
+async function generateImagePrompts(
+  historia: string,
+  estiloImagem: string,
+  referencias: ReferenceImageInput[],
+  config?: AIGenerationConfig | null
+) {
+  const refSummary = buildReferenceSummary(referencias)
+  const prompts = config?.prompts
+  const systemMessage =
+    prompts?.imagePromptsSystem?.trim() ??
+    [
+      "Voce e um especialista em prompts para ilustracoes digitais modernas.",
+      "Retorne APENAS JSON valido, sem markdown e sem explicacoes.",
+      "Os prompts devem estar em ingles.",
+      "Gere tres chaves: prompt_personagem, prompt_estilo_imagem e ficha_personagem.",
+      "prompt_personagem: apenas o personagem principal, identidade visual e traços fisicos, sem cenario.",
+      "prompt_estilo_imagem: apenas o estilo visual (tecnica, paleta, luz, atmosfera), sem personagem.",
+      "ficha_personagem: um character bible detalhado com TODOS os personagens principais da historia, incluindo identidade visual, roupas iniciais, cores, acessorios e detalhes fisicos consistentes para cada um.",
+      "Sempre preserve a identidade do rosto com base na imagem de referencia.",
+      "Evite estilo infantil, chibi ou proporcoes de bebe.",
+      "Busque um visual animado, estilizado e com toque futurista discreto quando fizer sentido.",
+      "Inclua diretrizes de consistencia visual (paleta, textura e iluminacao).",
+    ].join(" ")
 
-  const userMessage = [
+  const defaultUserMessage = [
     "Historia base:",
     historia,
     "",
     "Personagens e papeis:",
-    buildReferenceSummary(referencias),
+    refSummary,
     "",
     `Estilo desejado: ${estiloImagem}`,
     "",
@@ -203,8 +267,16 @@ async function generateImagePrompts(historia: string, estiloImagem: string, refe
     '  "ficha_personagem": "..."',
     "}",
   ].join("\n")
+  const userMessage = prompts?.imagePromptsUser?.trim()
+    ? replacePlaceholders(prompts.imagePromptsUser, {
+        HISTORIA: historia,
+        REFERENCIAS_SUMMARY: refSummary,
+        ESTILO_IMAGEM: estiloImagem,
+      })
+    : defaultUserMessage
 
-  const content = await callOpenAI(systemMessage, userMessage, 0.5)
+  const temperature = config?.temperatureImagePrompts ?? 0.5
+  const content = await callOpenAI(systemMessage, userMessage, temperature, config?.model)
   const json = extractJson(content)
   return JSON.parse(json) as {
     prompt_personagem: string
@@ -213,20 +285,32 @@ async function generateImagePrompts(historia: string, estiloImagem: string, refe
   }
 }
 
-async function generateStoryCartoon(historia: string, estiloImagem: string, referencias: ReferenceImageInput[], linguagem: string) {
-  const systemMessage = [
-    "Crie uma historia infantil curta seguindo as regras abaixo.",
-    "Nao inclua titulo.",
-    "A historia deve ter 3 paginas, maximo 400 caracteres por pagina.",
-    "Linguagem simples, acolhedora e educativa em PT-BR.",
-    "Use os personagens fornecidos e seus papeis.",
-    "A descricao da imagem deve estar em ingles.",
-    "Retorne APENAS JSON valido.",
-  ].join(" ")
+async function generateStoryCartoon(
+  historia: string,
+  estiloImagem: string,
+  referencias: ReferenceImageInput[],
+  linguagem: string,
+  config?: AIGenerationConfig | null
+) {
+  const refSummary = buildReferenceSummary(referencias)
+  const characterRule = config?.prompts?.characterIdentityRule?.trim() || buildCharacterIdentityRule()
+  const prompts = config?.prompts
 
-  const userMessage = [
+  const systemMessage =
+    prompts?.storyCartoonSystem?.trim() ??
+    [
+      "Crie uma historia infantil curta seguindo as regras abaixo.",
+      "Nao inclua titulo.",
+      "A historia deve ter 3 paginas, maximo 400 caracteres por pagina.",
+      "Linguagem simples, acolhedora e educativa em PT-BR.",
+      "Use os personagens fornecidos e seus papeis.",
+      "A descricao da imagem deve estar em ingles.",
+      "Retorne APENAS JSON valido.",
+    ].join(" ")
+
+  const defaultUserMessage = [
     "Personagens e papeis:",
-    buildReferenceSummary(referencias),
+    refSummary,
     "",
     `Estilo da historia: ${linguagem}. Texto final obrigatoriamente em PT-BR.`,
     `Estilo da imagem: ${estiloImagem}`,
@@ -234,7 +318,7 @@ async function generateStoryCartoon(historia: string, estiloImagem: string, refe
     "Se houver troca de roupa, isso deve estar EXPLICITO no texto e na descricao da imagem.",
     "Regras para o campo imagem:",
     "- Cartoon-style illustration with clean lines, balanced lighting.",
-    `- ${buildCharacterIdentityRule()}`,
+    `- ${characterRule}`,
     "- No animals or extra characters unless in story.",
     "",
     "Formato de saida OBRIGATORIO:",
@@ -247,8 +331,18 @@ async function generateStoryCartoon(historia: string, estiloImagem: string, refe
     "Historia base:",
     historia,
   ].join("\n")
+  const userMessage = prompts?.storyCartoonUser?.trim()
+    ? replacePlaceholders(prompts.storyCartoonUser, {
+        REFERENCIAS_SUMMARY: refSummary,
+        LINGUAGEM: linguagem,
+        ESTILO_IMAGEM: estiloImagem,
+        CHARACTER_IDENTITY_RULE: characterRule,
+        HISTORIA: historia,
+      })
+    : defaultUserMessage
 
-  const content = await callOpenAI(systemMessage, userMessage, 0.6)
+  const temperature = config?.temperatureStory ?? 0.6
+  const content = await callOpenAI(systemMessage, userMessage, temperature, config?.model)
   const json = extractJson(content)
   return JSON.parse(json) as StoryResult
 }
@@ -259,35 +353,48 @@ async function generateStoryWithImageBase(
   referencias: ReferenceImageInput[],
   linguagem: string,
   fichaPersonagem: string | null,
-  estiloOriginal: string | null = null
+  estiloOriginal: string | null = null,
+  config?: AIGenerationConfig | null
 ) {
-  const systemMessage = [
-    "Crie uma historia infantil curta seguindo as regras abaixo.",
-    "Nao inclua titulo.",
-    "A historia deve ter 3 paginas, maximo 400 caracteres por pagina.",
-    "Linguagem simples, acolhedora e educativa em PT-BR.",
-    "Use os personagens fornecidos e seus papeis.",
-    "A descricao da imagem deve estar em ingles.",
-    "IMPORTANTE: Cada pagina deve ter uma acao ou situacao diferente, com poses e movimentos variados dos personagens conectados a narrativa. Evite poses repetitivas ou genericas como 'caminhando de maos dadas' em todas as paginas.",
-    "Retorne APENAS JSON valido.",
-  ].join(" ")
+  const refSummary = buildReferenceSummary(referencias)
+  const characterRule = config?.prompts?.characterIdentityRule?.trim() || buildCharacterIdentityRule()
+  const prompts = config?.prompts
 
-  const userMessage = [
+  const systemMessage =
+    prompts?.storyWithImageBaseSystem?.trim() ??
+    [
+      "Crie uma historia infantil curta seguindo as regras abaixo.",
+      "Nao inclua titulo.",
+      "A historia deve ter 3 paginas, maximo 400 caracteres por pagina.",
+      "Linguagem simples, acolhedora e educativa em PT-BR.",
+      "Use os personagens fornecidos e seus papeis.",
+      "A descricao da imagem deve estar em ingles.",
+      "IMPORTANTE: Cada pagina deve ter uma acao ou situacao diferente, com poses e movimentos variados dos personagens conectados a narrativa. Evite poses repetitivas ou genericas como 'caminhando de maos dadas' em todas as paginas.",
+      "Retorne APENAS JSON valido.",
+    ].join(" ")
+
+  const fichaBlock = fichaPersonagem
+    ? "Ficha do personagem (seguir fielmente):\n" + fichaPersonagem
+    : ""
+  const styleLine =
+    estiloOriginal &&
+    (estiloOriginal.toLowerCase().includes("ilustracao") || estiloOriginal.toLowerCase().includes("ilustração"))
+      ? "- Realistic digital illustration, photorealistic style, natural lighting, detailed textures, life-like appearance, not cartoon or stylized."
+      : "- Stylized digital illustration, animated cinematic look, dynamic lighting."
+
+  const defaultUserMessage = [
     "Personagens e papeis:",
-    buildReferenceSummary(referencias),
+    refSummary,
     "",
     `Estilo da historia: ${linguagem}. Texto final obrigatoriamente em PT-BR.`,
     "Estilo da imagem (use como guia):",
     promptEstiloImagem,
-    fichaPersonagem ? "Ficha do personagem (seguir fielmente):" : "",
-    fichaPersonagem ? fichaPersonagem : "",
+    fichaBlock,
     "",
     "Se houver troca de roupa, isso deve estar EXPLICITO no texto e na descricao da imagem.",
     "Regras para o campo imagem:",
-    estiloOriginal && (estiloOriginal.toLowerCase().includes("ilustracao") || estiloOriginal.toLowerCase().includes("ilustração"))
-      ? "- Realistic digital illustration, photorealistic style, natural lighting, detailed textures, life-like appearance, not cartoon or stylized."
-      : "- Stylized digital illustration, animated cinematic look, dynamic lighting.",
-    `- ${buildCharacterIdentityRule()}`,
+    styleLine,
+    `- ${characterRule}`,
     "- No animals or extra characters unless in story.",
     "- CRITICAL: Each page must show characters in DIFFERENT, DYNAMIC poses connected to the story action. Avoid static or repetitive poses like 'walking hand-in-hand' across multiple pages. Describe specific actions, movements, gestures, and body positions that match the narrative of each page.",
     "",
@@ -301,8 +408,19 @@ async function generateStoryWithImageBase(
     "Historia base:",
     historia,
   ].join("\n")
+  const userMessage = prompts?.storyWithImageBaseUser?.trim()
+    ? replacePlaceholders(prompts.storyWithImageBaseUser, {
+        REFERENCIAS_SUMMARY: refSummary,
+        LINGUAGEM: linguagem,
+        PROMPT_ESTILO_IMAGEM: promptEstiloImagem,
+        FICHA_PERSONAGEM: fichaBlock,
+        CHARACTER_IDENTITY_RULE: characterRule,
+        HISTORIA: historia,
+      })
+    : defaultUserMessage
 
-  const content = await callOpenAI(systemMessage, userMessage, 0.6)
+  const temperature = config?.temperatureStory ?? 0.6
+  const content = await callOpenAI(systemMessage, userMessage, temperature, config?.model)
   const json = extractJson(content)
   return JSON.parse(json) as StoryResult
 }
@@ -365,15 +483,17 @@ function buildPagePrompt(
   promptPersonagem: string | null,
   promptEstiloImagem: string | null,
   fichaPersonagem: string | null,
-  allowOutfitChange: boolean
+  allowOutfitChange: boolean,
+  characterIdentityRule?: string | null
 ) {
+  const rule = characterIdentityRule?.trim() || buildCharacterIdentityRule()
   const parts = [
     pageImageDescription,
     "",
     promptPersonagem ? `Character details: ${promptPersonagem}` : "",
     promptEstiloImagem ? `Visual style: ${promptEstiloImagem}` : "",
     fichaPersonagem ? `Character bible (follow exactly): ${fichaPersonagem}` : "",
-    buildCharacterIdentityRule(),
+    rule,
     allowOutfitChange
       ? "Allow outfit change only as explicitly described; keep identity and key accessories consistent."
       : "Do not change clothing across pages unless the page text explicitly states an outfit change.",
@@ -438,6 +558,15 @@ export async function createBookWithAI(input: BookCreationInput, onProgress?: (v
 
   onProgress?.(5)
 
+  // Usar sempre as configurações do usuário logado (modelo, temperatura, prompts)
+  let userId = input.userId
+  if (!userId) {
+    const { data: { session } } = await supabase.auth.getSession()
+    userId = session?.user?.id ?? undefined
+    if (userId) input.userId = userId
+  }
+  const aiConfig = userId ? await fetchProfileAIConfig(userId) : null
+
   const baseImageFile = input.referencias[input.baseImageIndex]?.file
   if (!baseImageFile) {
     throw new Error("Imagem base nao encontrada.")
@@ -457,7 +586,12 @@ export async function createBookWithAI(input: BookCreationInput, onProgress?: (v
   let promptEstiloImagem: string | null = null
   let fichaPersonagem: string | null = null
   if (isIllustration) {
-    const prompts = await generateImagePrompts(input.historia, input.estiloImagem, input.referencias)
+    const prompts = await generateImagePrompts(
+      input.historia,
+      input.estiloImagem,
+      input.referencias,
+      aiConfig
+    )
     promptPersonagem = prompts.prompt_personagem
     promptEstiloImagem = prompts.prompt_estilo_imagem
     fichaPersonagem = prompts.ficha_personagem
@@ -466,18 +600,26 @@ export async function createBookWithAI(input: BookCreationInput, onProgress?: (v
   onProgress?.(35)
 
   const story = isCartoon
-    ? await generateStoryCartoon(input.historia, input.estiloImagem, input.referencias, input.linguagem)
+    ? await generateStoryCartoon(
+        input.historia,
+        input.estiloImagem,
+        input.referencias,
+        input.linguagem,
+        aiConfig
+      )
     : await generateStoryWithImageBase(
         input.historia,
         promptEstiloImagem || input.estiloImagem,
         input.referencias,
         input.linguagem,
         fichaPersonagem,
-        input.estiloImagem
+        input.estiloImagem,
+        aiConfig
       )
 
   onProgress?.(50)
 
+  const characterRule = aiConfig?.prompts?.characterIdentityRule?.trim() || null
   const pages = [story.pagina1, story.pagina2, story.pagina3]
   let previousImageUrl = baseImageUrl // Começa com a imagem base
   for (let index = 0; index < pages.length; index += 1) {
@@ -491,7 +633,8 @@ export async function createBookWithAI(input: BookCreationInput, onProgress?: (v
       promptPersonagem,
       promptEstiloImagem,
       fichaPersonagem,
-      allowOutfitChange
+      allowOutfitChange,
+      characterRule
     )
     const imageUrl = await createImageWithFalAI(prompt, previousImageUrl) // Usa imagem anterior como base
     await createBookPage(bookId, page.texto, imageUrl)

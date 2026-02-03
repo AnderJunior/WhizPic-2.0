@@ -10,6 +10,12 @@ export interface UserProfile {
   full_name: string | null
   role: 'user' | 'admin' | 'admin_master'
   plan_id: string | null
+  /** Configurações de Geração IA (página Geração IA) */
+  ai_model?: string
+  ai_temperature_default?: number
+  ai_temperature_image_prompts?: number
+  ai_temperature_story?: number
+  ai_prompts?: Record<string, string> | null
 }
 
 interface AuthContextType {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Link, useLocation } from "react-router-dom"
-import { Home, Library, Plus, Settings, TrendingUp, ChevronLeft, ChevronRight, ChevronDown, BookOpen } from "lucide-react"
+import { Home, Library, Plus, Settings, TrendingUp, ChevronLeft, ChevronRight, ChevronDown, BookOpen, WandSparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -28,6 +28,7 @@ const navigation: NavigationItem[] = [
     ],
   },
   { name: "Configurações", href: "/configuracoes", icon: Settings },
+  { name: "Geração IA", href: "/geracao-ia", icon: WandSparkles },
 ]
 
 export function Sidebar() {

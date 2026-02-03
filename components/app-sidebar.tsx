@@ -1,4 +1,4 @@
-import { Home, BookOpen, Settings, Library, Sparkles, TrendingUp, Menu } from "lucide-react"
+import { Home, BookOpen, Settings, Library, Sparkles, TrendingUp, Menu, WandSparkles } from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
@@ -27,6 +27,11 @@ const menuItems = [
     title: "Configurações",
     url: "/configuracoes",
     icon: Settings,
+  },
+  {
+    title: "Geração IA",
+    url: "/geracao-ia",
+    icon: WandSparkles,
   },
 ]
 
