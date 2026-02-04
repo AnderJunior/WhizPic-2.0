@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog"
 import { toast } from "sonner"
 import { useAuth } from "@/hooks/use-auth"
-import { getUserBooks, getBookPages, deleteBook, type Book } from "@/lib/books-api"
+import { getUserBooks, getBookPages, deleteBook } from "@/lib/books-api"
 
 interface BookDisplay {
   id: number

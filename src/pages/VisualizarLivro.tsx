@@ -1,14 +1,14 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useParams, useNavigate, Link, useLocation } from "react-router-dom"
+import { useParams, useNavigate, useLocation } from "react-router-dom"
 import { ChevronLeft, ChevronRight, Edit, Share2, Download, ArrowLeft } from "lucide-react"
 import { Loading } from "@/components/Loading"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { useAuth } from "@/hooks/use-auth"
-import { getBookWithPages, type BookWithPages } from "@/lib/books-api"
+import { getBookWithPages } from "@/lib/books-api"
 
 interface Page {
   number: number
@@ -121,7 +121,7 @@ export default function VisualizarLivro() {
         }
 
         // Adiciona as páginas de conteúdo
-        bookData.pages.forEach((page, index) => {
+        bookData.pages.forEach((page) => {
           if (page.story_description) {
             pages.push({
               number: pages.length,

@@ -193,15 +193,6 @@ export default function CriarLivro() {
     }
   }, [currentStep, createdBookId, navigate])
 
-  const handlePublish = () => {
-    toast.success("Livro criado com sucesso!")
-    if (createdBookId) {
-      navigate(`/livro/${createdBookId}`)
-      return
-    }
-    navigate("/livro/preview")
-  }
-
   const renderStepContent = () => {
     switch (currentStep) {
       case 1:

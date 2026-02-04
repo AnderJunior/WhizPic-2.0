@@ -14,7 +14,7 @@ import { supabase } from "@/lib/supabase"
 export default function ResetPassword() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { resetPassword, updatePassword } = useAuth()
+  const { resetPassword } = useAuth()
   const [loading, setLoading] = useState(false)
   const [step, setStep] = useState<"email" | "code">("email")
   const [email, setEmail] = useState("")
@@ -115,8 +115,9 @@ export default function ResetPassword() {
         return
       }
 
-      // Verifica o código OTP
+      // Verifica o código OTP (recovery com código requer email)
       const { error: verifyError } = await supabase.auth.verifyOtp({
+        email,
         token: code,
         type: 'recovery',
       })

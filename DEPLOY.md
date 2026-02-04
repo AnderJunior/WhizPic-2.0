@@ -29,48 +29,73 @@ Use o ficheiro **env.example** como modelo (copie para `.env` e preencha).
 
 ## 2. Deploy no Portainer
 
-### Opção A: Stack a partir do repositório (recomendado)
+### Opção B (recomendada): Clonar na VPS → Build na VPS → Criar a Stack
 
-1. No Portainer: **Stacks** → **Add stack**.
-2. Nome da stack: por exemplo `whizpic`.
-3. **Build method**: escolha **Repository** e informe:
-   - URL do repositório Git (ou use **Upload** se for enviar os ficheiros manualmente).
-4. Em **Environment variables** (ou **Load from .env**), carregue o `.env` ou defina as variáveis manualmente.
-5. **Deploy the stack**.
+Fluxo principal: repositório fica na VPS; o build é feito na VPS com as variáveis; a Stack no Portainer só usa a imagem já construída.
 
-O Portainer vai fazer o build da imagem e subir o container. A app fica disponível na porta **80** (ou na porta que configurar no `docker-compose.yml`).
+#### Passo 1: Rede e repositório na VPS
 
-### Opção B: Stack só com YAML + build da imagem no Portainer (Images)
+1. **Cria a rede** no Portainer (se ainda não existir): **Networks** → **Add network** → nome `WhizPicNet` → **Create**.
+2. Na **VPS** (SSH ou consola), clona o repositório e entra na pasta:
+   ```bash
+   cd /opt   # ou outro diretório à tua escolha
+   git clone https://github.com/AnderJunior/WhizPic-2.0.git WhizPic
+   cd WhizPic
+   ```
+3. Cria o ficheiro `.env` na pasta do projeto (copiar de `env.example`) e preenche:
+   ```bash
+   cp env.example .env
+   nano .env   # ou vim .env
+   ```
+   Coloca pelo menos:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_PUBLISHABLE_KEY`
 
-Se preferires criar a stack só com o YAML (sem ligar ao Git na stack) e construir a imagem à parte:
+#### Passo 2: Build da imagem na VPS
 
-1. **Cria a rede** (se ainda não existir): no Portainer, **Networks** → **Add network** → nome `WhizPicNet` → **Create**.
-2. **Stack**: **Stacks** → **Add stack** → nome `whizpic` → cola o conteúdo do `docker-compose.yml` → **Deploy**. O serviço ficará 0/1 até existir a imagem.
-3. **Build da imagem**: **Images** → **Build a new image** → **Build from Git**:
-   - URL do repositório, branch (ex.: `main`).
-   - **Image name**: coloca exatamente **`whizpic:latest`** (é o nome que a stack usa).
-   - Em **Build options** → **Build arguments**, adiciona:
-     - `VITE_SUPABASE_URL` = tua URL Supabase
-     - `VITE_SUPABASE_PUBLISHABLE_KEY` = tua chave
-   - **Build**. Quando terminar, a imagem `whizpic:latest` fica disponível.
-4. **Redeploy da stack**: **Stacks** → `whizpic` → **Update the stack** → **Pull and redeploy** (ou **Redeploy**). O serviço deve passar a 1/1.
+4. Na mesma pasta (`WhizPic`), faz o build. **O ponto (`.`)** no fim é o contexto de build (pasta atual). Para evitar erros no terminal, escreve o ponto **na mesma linha** do último `--build-arg`:
+   ```bash
+   docker build -t whizpic:latest --build-arg VITE_SUPABASE_URL="https://teu-projeto.supabase.co" --build-arg VITE_SUPABASE_PUBLISHABLE_KEY="eyJ..." .
+   ```
+   Ou, com quebras de linha (cada `\` junta a linha seguinte; o `.` tem de ficar na última linha):
+   ```bash
+   docker build -t whizpic:latest \
+     --build-arg VITE_SUPABASE_URL="https://teu-projeto.supabase.co" \
+     --build-arg VITE_SUPABASE_PUBLISHABLE_KEY="eyJ..." .
+   ```
+   Se tiveres o `.env` na pasta:
+   ```bash
+   export $(grep -v '^#' .env | xargs)
+   docker build -t whizpic:latest --build-arg VITE_SUPABASE_URL="$VITE_SUPABASE_URL" --build-arg VITE_SUPABASE_PUBLISHABLE_KEY="$VITE_SUPABASE_PUBLISHABLE_KEY" .
+   ```
+5. Confirma que a imagem existe: `docker images | grep whizpic` → deve aparecer `whizpic` com tag `latest`.
 
-**Importante:** A imagem tem de se chamar **`whizpic:latest`** e o build tem de passar as variáveis `VITE_SUPABASE_*`, senão a app não liga ao Supabase ou o container pode falhar ao iniciar.
+#### Passo 3: Criar a Stack no Portainer
+
+6. No **Portainer**: **Stacks** → **Add stack** → nome: `whizpic`.
+7. **Build method**: **Web editor** (só YAML, sem repositório).
+8. Cola o conteúdo do ficheiro **`docker-compose.stack-only.yml`** do projeto (ou o YAML abaixo).
+9. **Deploy the stack**.
+
+A stack usa a imagem `whizpic:latest` que já está na VPS; não faz build.
+
+**Para atualizar no futuro:** na VPS, na pasta do repo: `git pull`, depois repetir o `docker build -t whizpic:latest ...` e no Portainer **Stacks** → `whizpic` → **Update the stack** → **Redeploy**.
+
+---
+
+### Opção A: Stack com repositório (build feito pelo Portainer)
+
+O build é feito pelo Portainer ao fazer deploy da stack (repositório + variáveis na stack).
+
+1. **Networks** → **Add network** → nome `WhizPicNet` → **Create**.
+2. **Stacks** → **Add stack** → nome `whizpic` → **Build method**: **Repository** → URL do Git (ex. `https://github.com/AnderJunior/WhizPic-2.0.git`).
+3. Em **Environment variables** da stack, adiciona `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY`.
+4. No editor, cola o **docker-compose.yml** do projeto (o que tem secção `build`).
+5. **Deploy the stack**. Para atualizar: **Update the stack** → **Rebuild** e redeploy.
 
 ### Opção C: Build no PC e importar na VPS
 
-1. Na máquina onde está o código (ou no servidor):
-   ```bash
-   cd /caminho/para/WhizPic
-   # Crie o .env com as variáveis
-   docker build -t whizpic:latest \
-     --build-arg VITE_SUPABASE_URL="https://..." \
-     --build-arg VITE_SUPABASE_PUBLISHABLE_KEY="eyJ..." \
-     .
-   docker save whizpic:latest -o whizpic.tar
-   ```
-2. Envie `whizpic.tar` para a VPS e no Portainer: **Images** → **Import** (ou carregue o tar).
-3. **Stacks** → `whizpic` → **Update the stack** → **Redeploy**.
+Build no teu PC com `docker build --build-arg ...`, depois `docker save`, envia o `.tar` para a VPS e no Portainer **Images** → **Import**. A stack usa o ficheiro **docker-compose.stack-only.yml** (só `image: whizpic:latest`, sem `build`).
 
 ## 3. Domínio app.whizpic.com
 
@@ -83,22 +108,19 @@ Para HTTPS, use o proxy reverso com Let’s Encrypt (por exemplo Caddy ou Traefi
 
 ## 4. Atualizar a aplicação
 
-Sempre que quiser atualizar o sistema:
-
-1. No Portainer, abra a stack **whizpic**.
-2. Se usar **Repository**: atualize o código no Git (ou faça upload da nova versão) e clique em **Pull and redeploy** (ou **Update the stack** com **Re-pull image** / **Rebuild**).
-3. Se fizer **build na stack**: use **Rebuild** e depois **Redeploy** para recriar o container com a nova imagem.
-
-Assim você sobe e atualiza sempre pela mesma stack no Portainer.
+- **Se usas Opção B (clonar + build na VPS):** Na VPS, na pasta do repo (`/opt/WhizPic` ou onde clonaste): `git pull`, depois volta a correr o `docker build -t whizpic:latest ...` com os mesmos `--build-arg`. No Portainer: **Stacks** → **whizpic** → **Update the stack** → **Redeploy**.
+- **Se usas Opção A (stack com repositório):** No Portainer, **Stacks** → **whizpic** → **Update the stack** → **Rebuild** (e redeploy). O código é obtido do Git pelo Portainer.
+- **Se usas Opção C (build no PC):** Volta a fazer build no PC, importar a nova imagem na VPS e **Redeploy** na stack.
 
 ## 5. Resumo dos ficheiros
 
-| Ficheiro           | Função                                              |
-|--------------------|-----------------------------------------------------|
-| `Dockerfile`       | Build da app Vite + servir com Nginx                |
-| `docker-compose.yml` | Stack para Portainer (build + serviço)          |
-| `nginx.conf`       | Configuração Nginx (SPA, cache, segurança)         |
-| `.dockerignore`    | Reduz contexto do build                             |
-| `.env` / `.env.example` | Variáveis de ambiente (build)                  |
+| Ficheiro                        | Função                                                       |
+|---------------------------------|--------------------------------------------------------------|
+| `Dockerfile`                    | Build da app Vite + servir com Nginx                         |
+| `docker-compose.yml`           | Stack com build (usado na Opção A)                           |
+| `docker-compose.stack-only.yml`| Stack só com imagem (usado na Opção B e C – sem build)       |
+| `nginx.conf`                   | Configuração Nginx (SPA, cache, segurança)                   |
+| `.dockerignore`                | Reduz contexto do build                                      |
+| `env.example`                  | Modelo para `.env` (variáveis de build)                      |
 
 Se algo falhar, verifique os **logs** do container da stack no Portainer e confirme que as variáveis `VITE_*` foram passadas no build.

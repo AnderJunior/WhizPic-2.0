@@ -1,0 +1,21 @@
+# Use este ficheiro na Stack do Portainer quando a imagem já foi construída na VPS
+# (fluxo: clonar repo → build na VPS → criar Stack e colar este YAML)
+version: "3.8"
+
+services:
+  whizpic:
+    image: whizpic:latest
+    networks:
+      - WhizPicNet
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.whizpic.rule=Host(`app.whizpic.com`)"
+        - "traefik.http.routers.whizpic.entrypoints=websecure"
+        - "traefik.http.routers.whizpic.tls.certresolver=letsencrypt"
+        - "traefik.http.services.whizpic.loadbalancer.server.port=80"
+
+networks:
+  WhizPicNet:
+    external: true
