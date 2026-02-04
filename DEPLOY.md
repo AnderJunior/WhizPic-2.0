@@ -40,7 +40,24 @@ Use o ficheiro **env.example** como modelo (copie para `.env` e preencha).
 
 O Portainer vai fazer o build da imagem e subir o container. A app fica disponível na porta **80** (ou na porta que configurar no `docker-compose.yml`).
 
-### Opção B: Build manual da imagem e depois Stack
+### Opção B: Stack só com YAML + build da imagem no Portainer (Images)
+
+Se preferires criar a stack só com o YAML (sem ligar ao Git na stack) e construir a imagem à parte:
+
+1. **Cria a rede** (se ainda não existir): no Portainer, **Networks** → **Add network** → nome `WhizPicNet` → **Create**.
+2. **Stack**: **Stacks** → **Add stack** → nome `whizpic` → cola o conteúdo do `docker-compose.yml` → **Deploy**. O serviço ficará 0/1 até existir a imagem.
+3. **Build da imagem**: **Images** → **Build a new image** → **Build from Git**:
+   - URL do repositório, branch (ex.: `main`).
+   - **Image name**: coloca exatamente **`whizpic:latest`** (é o nome que a stack usa).
+   - Em **Build options** → **Build arguments**, adiciona:
+     - `VITE_SUPABASE_URL` = tua URL Supabase
+     - `VITE_SUPABASE_PUBLISHABLE_KEY` = tua chave
+   - **Build**. Quando terminar, a imagem `whizpic:latest` fica disponível.
+4. **Redeploy da stack**: **Stacks** → `whizpic` → **Update the stack** → **Pull and redeploy** (ou **Redeploy**). O serviço deve passar a 1/1.
+
+**Importante:** A imagem tem de se chamar **`whizpic:latest`** e o build tem de passar as variáveis `VITE_SUPABASE_*`, senão a app não liga ao Supabase ou o container pode falhar ao iniciar.
+
+### Opção C: Build no PC e importar na VPS
 
 1. Na máquina onde está o código (ou no servidor):
    ```bash
@@ -53,7 +70,7 @@ O Portainer vai fazer o build da imagem e subir o container. A app fica disponí
    docker save whizpic:latest -o whizpic.tar
    ```
 2. Envie `whizpic.tar` para a VPS e no Portainer: **Images** → **Import** (ou carregue o tar).
-3. Crie uma **Stack** só com o serviço `web` usando a imagem `whizpic:latest` (sem secção `build`), ou use o `docker-compose.yml` ajustado para não fazer build (apenas `image: whizpic:latest`).
+3. **Stacks** → `whizpic` → **Update the stack** → **Redeploy**.
 
 ## 3. Domínio app.whizpic.com
 

@@ -1,2 +1,6 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+# Garante LF em ficheiros críticos para Linux/Docker (evita exit 2 no nginx)
+nginx.conf text eol=lf
+Dockerfile text eol=lf
+docker-compose.yml text eol=lf

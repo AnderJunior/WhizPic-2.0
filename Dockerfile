@@ -18,14 +18,12 @@ COPY . .
 # Passe via --build-arg no build ou via env no docker-compose
 ARG VITE_SUPABASE_URL=""
 ARG VITE_SUPABASE_PUBLISHABLE_KEY=""
-ARG VITE_SUPABASE_ANON_KEY=""
 ARG VITE_OPENAI_API_KEY=""
 ARG VITE_FAL_API_KEY=""
 ARG VITE_IMGBB_API_KEY=""
 
 ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
     VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY \
-    VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY \
     VITE_OPENAI_API_KEY=$VITE_OPENAI_API_KEY \
     VITE_FAL_API_KEY=$VITE_FAL_API_KEY \
     VITE_IMGBB_API_KEY=$VITE_IMGBB_API_KEY
@@ -41,6 +39,9 @@ FROM nginx:alpine
 RUN rm -rf /usr/share/nginx/html/* /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Corrige fins de linha (CRLF do Windows causam exit 2 no nginx)
+RUN sed -i 's/\r$//' /etc/nginx/conf.d/default.conf
 
 # Usuário não-root (segurança)
 RUN chown -R nginx:nginx /usr/share/nginx/html
